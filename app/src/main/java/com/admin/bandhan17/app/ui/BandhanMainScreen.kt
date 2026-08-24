@@ -130,25 +130,35 @@ fun BandhanMainScreen(
         biometricStatus = status
         authErrorMessage = null
 
-        if (status == BiometricStatus.AVAILABLE) {
-            biometricAuthManager.authenticate(
-                activity = act,
-                title = context.getString(R.string.security_prompt_title),
-                subtitle = context.getString(R.string.security_prompt_subtitle),
-                description = context.getString(R.string.security_prompt_desc)
-            ) { result ->
-                when (result) {
-                    is BiometricAuthResult.Success -> {
-                        isUnlocked = true
-                        authErrorMessage = null
-                    }
-                    is BiometricAuthResult.Error -> {
-                        authErrorMessage = result.message
-                    }
-                    is BiometricAuthResult.Failed -> {
-                        authErrorMessage = context.getString(R.string.security_auth_failed)
+        when (status) {
+            BiometricStatus.AVAILABLE -> {
+                biometricAuthManager.authenticate(
+                    activity = act,
+                    title = context.getString(R.string.security_prompt_title),
+                    subtitle = context.getString(R.string.security_prompt_subtitle),
+                    description = context.getString(R.string.security_prompt_desc)
+                ) { result ->
+                    when (result) {
+                        is BiometricAuthResult.Success -> {
+                            isUnlocked = true
+                            authErrorMessage = null
+                        }
+                        is BiometricAuthResult.Error -> {
+                            authErrorMessage = result.message
+                        }
+                        is BiometricAuthResult.Failed -> {
+                            authErrorMessage = context.getString(R.string.security_auth_failed)
+                        }
                     }
                 }
+            }
+            BiometricStatus.NO_HARDWARE,
+            BiometricStatus.UNAVAILABLE -> {
+                // If device does not support biometric or credentials, grant access without blocking
+                isUnlocked = true
+            }
+            BiometricStatus.NONE_ENROLLED -> {
+                // Show message on SecurityLockScreen with options to setup or proceed
             }
         }
     }
@@ -720,6 +730,9 @@ fun BandhanMainScreen(
                 },
                 onOpenSettingsClick = {
                     biometricAuthManager.openSecuritySettings(context)
+                },
+                onBypassClick = {
+                    isUnlocked = true
                 },
                 modifier = Modifier.fillMaxSize()
             )

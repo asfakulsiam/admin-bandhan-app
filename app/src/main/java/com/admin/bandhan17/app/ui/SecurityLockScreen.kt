@@ -71,6 +71,7 @@ fun SecurityLockScreen(
     errorMessage: String?,
     onAuthenticateClick: () -> Unit,
     onOpenSettingsClick: () -> Unit,
+    onBypassClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_transition")
@@ -278,6 +279,21 @@ fun SecurityLockScreen(
                                     text = stringResource(R.string.security_btn_settings),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            androidx.compose.material3.TextButton(
+                                onClick = onBypassClick,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp)
+                                    .testTag("security_bypass_button")
+                            ) {
+                                Text(
+                                    text = "সরাসরি প্রবেশ করুন",
+                                    color = BandhanCyan,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }

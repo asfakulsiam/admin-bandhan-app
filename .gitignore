@@ -23,3 +23,13 @@ debug.keystore
 !gradlew
 !gradlew.bat
 
+# Never ignore production signing keys & critical configurations
+!release.keystore
+!release.keystore.base64
+!debug.keystore.base64
+!.env.example
+!metadata.json
+!app/src/main/res/drawable/*
+!app/src/main/res/mipmap*/*
+
+
