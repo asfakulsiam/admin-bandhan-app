@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Admin Bandhan 17</string>
+    <string name="app_name_bengali">বন্ধন ১৭</string>
+    <string name="app_motto_bengali">আমরা একসাথে, আমরা এগিয়ে</string>
+    <string name="no_internet_title">ইন্টারনেট সংযোগ নেই</string>
+    <string name="no_internet_desc">অনুগ্রহ করে আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন। প্রতি ১৫ সেকেন্ডে পুনরায় চেষ্টা করা হচ্ছে…</string>
+    <string name="retry_button">আবার চেষ্টা করুন</string>
+    <string name="loading_text">লোড হচ্ছে…</string>
+    <string name="permission_camera_title">ক্যামেরা অনুমতি প্রয়োজন</string>
+    <string name="permission_camera_desc">ছবি তোলার জন্য ক্যামেরার অনুমতি দিন</string>
+    <string name="security_title">অ্যাডমিন সিকিউরিটি লক</string>
+    <string name="security_subtitle">অ্যাডমিন পোর্টালে প্রবেশের পূর্বে পরিচয় নিশ্চিত করুন</string>
+    <string name="security_desc">আপনার ডিভাইসের ফিঙ্গারপ্রিন্ট, ফেস আনলক বা স্ক্রিন লক (পিন/প্যাটার্ন/পাসওয়ার্ড) ব্যবহার করে সুরক্ষিতভাবে প্রবেশ করুন।</string>
+    <string name="security_btn_unlock">আনলক করতে ট্যাপ করুন</string>
+    <string name="security_btn_settings">ডিভাইস সিকিউরিটি সেটিংস</string>
+    <string name="security_prompt_title">Admin Bandhan 17 Security</string>
+    <string name="security_prompt_subtitle">অ্যাডমিন অ্যাক্সেস যাচাইকরণ</string>
+    <string name="security_prompt_desc">ডিভাইস বায়োমেট্রিক বা স্ক্রিন লক দিন।</string>
+    <string name="security_no_credentials_msg">আপনার ডিভাইসে কোনো বায়োমেট্রিক বা স্ক্রিন লক (PIN/প্যাটার্ন) সেট করা নেই। সুরক্ষার জন্য অনুগ্রহ করে ডিভাইসের সেটিংসে গিয়ে লক সেট করুন।</string>
+    <string name="security_auth_failed">যাচাইকরণ ব্যর্থ হয়েছে। পুনরায় চেষ্টা করুন।</string>
+</resources>

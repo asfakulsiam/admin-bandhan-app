@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- APK update downloads: File(context.cacheDir, "updates") in UpdateManager.kt -->
+    <cache-path name="updates" path="updates/" />
+    <cache-path name="updates_cache" path="updates/" />
+    <cache-path name="cache_root" path="." />
+
+    <!-- Camera capture photos: context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) in BandhanMainScreen.kt -->
+    <external-files-path name="camera_images" path="Pictures/" />
+    <external-files-path name="my_images" path="Pictures/" />
+    <external-files-path name="my_downloads" path="Download/" />
+
+    <!-- Legacy statement downloads saved to public Downloads folder & external storage -->
+    <external-path name="downloads" path="Download/" />
+    <external-path name="public_downloads" path="Download/" />
+    <external-path name="external_root" path="." />
+    <external-cache-path name="my_cache" path="." />
+</paths>
+

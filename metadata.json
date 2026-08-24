@@ -1,0 +1,6 @@
+{
+  "name": "Admin Bandhan 17",
+  "description": "Native Android app for Admin Bandhan 17 with in-app browsing, smooth Bengali splash screen, Google Sign-In support, pull-to-refresh, file uploads, offline detection, and independent update system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

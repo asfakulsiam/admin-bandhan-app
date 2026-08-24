@@ -1,11 +1,30 @@
-<div align="center">
+# Admin Bandhan 17 Android App
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Official Android Application for **Admin Bandhan 17**.
+- **Repository**: [asfakulsiam/admin-bandhan-apk](https://github.com/asfakulsiam/admin-bandhan-apk)
 
-  <h1>Built with AI Studio</h2>
+## Features
+- **Native Security Gatekeeper**: Biometric authentication (Fingerprint / Face Unlock) and device credential fallback (PIN / Password / Pattern) with auto-lock on background resume.
+- **In-App Web Experience**: Native WebView container with pull-to-refresh, offline retry screen, and navigation controls.
+- **Direct In-App Updates**: Automatic update checking and in-app download dialog showing release notes and changelog from GitHub Releases.
+- **Authentication**: Supports Google Sign-In and OAuth workflows.
+- **Modern Jetpack Compose**: Material 3 theming, Edge-to-Edge display, and system bars integration.
+- **Automated CI/CD**: GitHub Actions workflows for automated building, testing, signing, and release artifact generation (Debug APK, Release APK, and AAB).
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## Building Locally
+To assemble the debug APK:
+```bash
+./gradlew :app:assembleDebug
+```
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+To run unit and robolectric tests:
+```bash
+./gradlew :app:testDebugUnitTest
+```
 
-</div>
+## CI/CD Pipeline
+Every push or pull request to `main` / `master` automatically triggers the GitHub Actions workflow to:
+1. Validate the official Gradle Wrapper jar against Gradle checksums.
+2. Build and run unit test suites.
+3. Generate signed Debug & Release APKs along with the Android App Bundle (AAB).
+4. Upload build artifacts for immediate download from the GitHub Actions run summary.
