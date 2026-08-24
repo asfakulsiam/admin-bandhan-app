@@ -348,10 +348,10 @@ fun BandhanMainScreen(
                         builtInZoomControls = true
                         displayZoomControls = false
                         mediaPlaybackRequiresUserGesture = false
-                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            safeBrowsingEnabled = false
+                            safeBrowsingEnabled = true
                         }
 
                         // Custom Chrome User Agent to allow Google Sign-In inside WebView
@@ -522,7 +522,7 @@ fun BandhanMainScreen(
                                     databaseEnabled = true
                                     allowFileAccess = true
                                     allowContentAccess = true
-                                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                    mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                                     userAgentString = CHROME_USER_AGENT
                                 }
                                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)

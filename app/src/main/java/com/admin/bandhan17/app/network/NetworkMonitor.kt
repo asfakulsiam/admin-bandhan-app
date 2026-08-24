@@ -41,7 +41,11 @@ class NetworkMonitor(private val context: Context) {
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
 
-        connectivityManager?.registerNetworkCallback(request, callback)
+        try {
+            connectivityManager?.registerNetworkCallback(request, callback)
+        } catch (_: Exception) {
+            // Some devices or custom ROMs without permission or hardware will fail gracefully
+        }
 
         // Send initial value
         trySend(isCurrentlyConnected())
@@ -54,9 +58,13 @@ class NetworkMonitor(private val context: Context) {
     }.distinctUntilChanged()
 
     fun isCurrentlyConnected(): Boolean {
-        val activeNetwork = connectivityManager?.activeNetwork ?: return false
-        val capabilities =
-            connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        return try {
+            val activeNetwork = connectivityManager?.activeNetwork ?: return false
+            val capabilities =
+                connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            true
+        }
     }
 }
