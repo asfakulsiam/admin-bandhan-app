@@ -2,6 +2,7 @@
 
 Official Android Application for **Admin Bandhan 17**.
 - **Repository**: [asfakulsiam/admin-bandhan-apk](https://github.com/asfakulsiam/admin-bandhan-apk)
+- **Update Source Repository**: [asfakulsiam/admin-bandhan-app](https://github.com/asfakulsiam/admin-bandhan-app)
 
 ## Features
 - **Native Security Gatekeeper**: Biometric authentication (Fingerprint / Face Unlock) and device credential fallback (PIN / Password / Pattern) with auto-lock on background resume.

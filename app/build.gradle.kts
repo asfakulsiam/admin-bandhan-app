@@ -17,22 +17,22 @@ android {
     applicationId = "com.admin.bandhan17.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 27
-    versionName = "2.2.19"
+    versionCode = 29
+    versionName = "2.2.21"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    val githubRepoEnv = System.getenv("GITHUB_REPOSITORY") // Automatically supplied by GitHub Actions e.g. "owner/repo"
+    val githubRepoEnv = System.getenv("GITHUB_UPDATE_REPOSITORY") ?: System.getenv("GITHUB_REPOSITORY")
     val repoOwner = when {
-      !githubRepoEnv.isNullOrBlank() && githubRepoEnv.contains("/") -> githubRepoEnv.substringBefore("/")
-      !System.getenv("GITHUB_REPOSITORY_OWNER").isNullOrBlank() -> System.getenv("GITHUB_REPOSITORY_OWNER")
       !System.getenv("GITHUB_REPO_OWNER").isNullOrBlank() -> System.getenv("GITHUB_REPO_OWNER")
+      !System.getenv("GITHUB_REPOSITORY_OWNER").isNullOrBlank() -> System.getenv("GITHUB_REPOSITORY_OWNER")
+      !githubRepoEnv.isNullOrBlank() && githubRepoEnv.contains("/") -> githubRepoEnv.substringBefore("/")
       else -> "asfakulsiam"
     }
     val repoName = when {
-      !githubRepoEnv.isNullOrBlank() && githubRepoEnv.contains("/") -> githubRepoEnv.substringAfter("/")
       !System.getenv("GITHUB_REPO_NAME").isNullOrBlank() -> System.getenv("GITHUB_REPO_NAME")
-      else -> "admin-bandhan-apk"
+      !System.getenv("GITHUB_UPDATE_REPO_NAME").isNullOrBlank() -> System.getenv("GITHUB_UPDATE_REPO_NAME")
+      else -> "admin-bandhan-app"
     }
     buildConfigField("String", "GITHUB_REPO_OWNER", "\"$repoOwner\"")
     buildConfigField("String", "GITHUB_REPO_NAME", "\"$repoName\"")
