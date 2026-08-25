@@ -1,0 +1,25 @@
+# Enforce binary format for image assets and keystores to prevent UTF-8 text mangling
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.keystore binary
+*.jks binary
+*.jar binary
+*.so binary
+*.aar binary
+
+# Text files
+*.kt text
+*.kts text
+*.java text
+*.xml text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+*.properties text
+*.gradle text
+*.txt text

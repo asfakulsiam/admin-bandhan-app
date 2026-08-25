@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="256dp"
+    android:height="256dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+
+    <!-- Outer Emerald Rim -->
+    <path
+        android:fillColor="#004D40"
+        android:pathData="M128,128m-120,0a120,120 0,1 1,240 0a120,120 0,1 1,-240 0" />
+
+    <!-- Cyan Border Ring -->
+    <path
+        android:strokeColor="#00BFA5"
+        android:strokeWidth="6"
+        android:fillColor="#00000000"
+        android:pathData="M128,128m-114,0a114,114 0,1 1,228 0a114,114 0,1 1,-228 0" />
+
+    <!-- Dark Center Disc -->
+    <path
+        android:fillColor="#0B1E28"
+        android:strokeColor="#00897B"
+        android:strokeWidth="3"
+        android:pathData="M128,128m-96,0a96,96 0,1 1,192 0a96,96 0,1 1,-192 0" />
+
+    <!-- Admin Shield Outer -->
+    <path
+        android:fillColor="#00BFA5"
+        android:strokeColor="#64FFDA"
+        android:strokeWidth="3"
+        android:pathData="M128,60 L175,80 L175,130 C175,170 128,195 128,195 C128,195 81,170 81,130 L81,80 Z" />
+
+    <!-- Admin Shield Inner Core -->
+    <path
+        android:fillColor="#0A2533"
+        android:pathData="M128,68 L167,85 L167,128 C167,162 128,184 128,184 C128,184 89,162 89,128 L89,85 Z" />
+
+    <!-- Security Key Head -->
+    <path
+        android:fillColor="#64FFDA"
+        android:strokeColor="#00BFA5"
+        android:strokeWidth="2"
+        android:pathData="M128,108m-16,0a16,16 0,1 1,32 0a16,16 0,1 1,-32 0" />
+
+    <!-- Key Inner Hole -->
+    <path
+        android:fillColor="#0A2533"
+        android:pathData="M128,108m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0" />
+
+    <!-- Key Shaft and Teeth -->
+    <path
+        android:fillColor="#64FFDA"
+        android:pathData="M125,120 L131,120 L131,155 L138,155 L138,162 L131,162 L131,168 L125,168 Z" />
+
+    <!-- Left Star Accent -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M62,128 L64,133 L69,134 L65,137 L66,142 L62,139 L58,142 L59,137 L55,134 L60,133 Z" />
+
+    <!-- Right Star Accent -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M194,128 L196,133 L201,134 L197,137 L198,142 L194,139 L190,142 L191,137 L187,134 L192,133 Z" />
+
+</vector>

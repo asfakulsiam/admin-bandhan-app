@@ -56,7 +56,9 @@ fun BandhanEmblem(
             .testTag("bandhan_emblem"),
         contentAlignment = Alignment.Center
     ) {
-        val painter = runCatching { painterResource(id = R.drawable.logo) }.getOrNull()
+        val painter = runCatching { painterResource(id = R.drawable.ic_bandhan_logo) }
+            .recoverCatching { painterResource(id = R.drawable.logo) }
+            .getOrNull()
         if (painter != null) {
             Image(
                 painter = painter,
