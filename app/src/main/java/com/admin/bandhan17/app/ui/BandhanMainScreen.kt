@@ -267,11 +267,13 @@ fun BandhanMainScreen(
     ) { _ -> }
 
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             }
-        }
+        } catch (_: Throwable) {}
     }
 
     // Broadcast receiver for completed system DownloadManager downloads
@@ -300,7 +302,13 @@ fun BandhanMainScreen(
                                         val mimeType = if (mimeIndex >= 0) c.getString(mimeIndex) ?: "application/octet-stream" else "application/octet-stream"
                                         val size = if (sizeIndex >= 0) c.getLong(sizeIndex) else 0L
 
-                                        val uri = localUriStr?.let { Uri.parse(it) }
+                                        var uri = localUriStr?.let { Uri.parse(it) }
+                                        if (uri == null) {
+                                            try {
+                                                uri = dm.getUriForDownloadedFile(downloadId)
+                                            } catch (_: Throwable) {}
+                                        }
+
                                         if (uri != null) {
                                             val resolvedFile = if (uri.scheme == "file") File(uri.path ?: "") else null
                                             val resolvedUri = if (uri.scheme == "file" && resolvedFile != null) {
@@ -325,7 +333,7 @@ fun BandhanMainScreen(
                                             // Show interactive notification with Open and Share action buttons
                                             DownloadHandler.showCompletedNotification(
                                                 context = context,
-                                                notificationId = downloadId.toInt(),
+                                                notificationId = (downloadId and 0x7FFFFFFF).toInt(),
                                                 fileName = title,
                                                 mimeType = mimeType,
                                                 fileUri = resolvedUri,
@@ -342,12 +350,15 @@ fun BandhanMainScreen(
             }
         }
 
-        val intentFilter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(downloadCompleteReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            context.registerReceiver(downloadCompleteReceiver, intentFilter)
-        }
+        try {
+            val intentFilter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+            ContextCompat.registerReceiver(
+                context,
+                downloadCompleteReceiver,
+                intentFilter,
+                ContextCompat.RECEIVER_EXPORTED
+            )
+        } catch (_: Throwable) {}
 
         onDispose {
             try {
@@ -837,7 +848,7 @@ fun BandhanMainScreen(
         )
 
         // Child Popup WebView (for OAuth / Dialog Windows)
-        if (popupWebView != null) {
+        popupWebView?.let { popupView ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -845,7 +856,10 @@ fun BandhanMainScreen(
             ) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
-                    factory = { popupWebView!! }
+                    factory = {
+                        (popupView.parent as? ViewGroup)?.removeView(popupView)
+                        popupView
+                    }
                 )
             }
         }

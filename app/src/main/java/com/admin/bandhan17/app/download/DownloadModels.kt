@@ -2,12 +2,12 @@ package com.admin.bandhan17.app.download
 
 import android.net.Uri
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.VideoFile
@@ -103,7 +103,7 @@ enum class FileCategory(
     ),
     OTHER(
         displayName = "General File",
-        icon = Icons.Default.InsertDriveFile,
+        icon = Icons.AutoMirrored.Filled.InsertDriveFile,
         accentColor = Color(0xFF546E7A),
         lightBgColor = Color(0xFFECEFF1)
     );

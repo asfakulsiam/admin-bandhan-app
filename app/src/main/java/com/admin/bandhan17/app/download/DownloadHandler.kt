@@ -579,7 +579,13 @@ object DownloadHandler {
         file: File?
     ): Intent {
         val resolvedUri = when {
-            file != null -> FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            file != null -> {
+                try {
+                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                } catch (_: Exception) {
+                    fileUri ?: Uri.fromFile(file)
+                }
+            }
             fileUri != null -> fileUri
             else -> Uri.EMPTY
         }
@@ -588,6 +594,7 @@ object DownloadHandler {
             setDataAndType(resolvedUri, mimeType)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            clipData = android.content.ClipData.newRawUri("file", resolvedUri)
         }
     }
 
@@ -599,7 +606,13 @@ object DownloadHandler {
         fileName: String
     ): Intent {
         val resolvedUri = when {
-            file != null -> FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            file != null -> {
+                try {
+                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                } catch (_: Exception) {
+                    fileUri ?: Uri.fromFile(file)
+                }
+            }
             fileUri != null -> fileUri
             else -> Uri.EMPTY
         }
@@ -611,6 +624,7 @@ object DownloadHandler {
             putExtra(Intent.EXTRA_TEXT, "Bandhan 17: $fileName")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            clipData = android.content.ClipData.newRawUri(fileName, resolvedUri)
         }
     }
 
