@@ -66,6 +66,27 @@ fun BandhanEmblem(
                     .fillMaxSize()
                     .rotate(if (animate) rotation * 0.1f else 0f)
             )
+        } else {
+            androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                val center = this.center
+                val radius = this.size.minDimension / 2f
+                drawCircle(
+                    color = androidx.compose.ui.graphics.Color(0xFF004D40),
+                    radius = radius,
+                    center = center
+                )
+                drawCircle(
+                    color = androidx.compose.ui.graphics.Color(0xFF00BFA5),
+                    radius = radius * 0.92f,
+                    center = center,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 8f)
+                )
+                drawCircle(
+                    color = androidx.compose.ui.graphics.Color(0xFF0B1E28),
+                    radius = radius * 0.82f,
+                    center = center
+                )
+            }
         }
     }
 }
