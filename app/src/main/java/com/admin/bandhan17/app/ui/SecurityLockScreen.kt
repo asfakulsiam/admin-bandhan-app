@@ -135,30 +135,11 @@ fun SecurityLockScreen(
                             )
                     )
 
-                    // Inner emblem circle
-                    Box(
-                        modifier = Modifier
-                            .size(96.dp)
-                            .shadow(16.dp, CircleShape)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(
-                                        BandhanEmeraldPrimary,
-                                        BandhanCyan
-                                    )
-                                )
-                            )
-                            .border(2.dp, Color.White.copy(alpha = 0.4f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (biometricStatus == BiometricStatus.NONE_ENROLLED) Icons.Filled.Lock else Icons.Filled.Fingerprint,
-                            contentDescription = "Security Shield",
-                            tint = Color.White,
-                            modifier = Modifier.size(52.dp)
-                        )
-                    }
+                    // Branded Admin Emblem
+                    BandhanEmblem(
+                        size = 96.dp,
+                        animate = false
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))

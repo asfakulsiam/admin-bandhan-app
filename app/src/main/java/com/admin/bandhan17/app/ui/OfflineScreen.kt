@@ -88,10 +88,18 @@ fun OfflineScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                // Bandhan Emblem Header
+                BandhanEmblem(
+                    size = 64.dp,
+                    animate = false
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 // Offline Icon
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(72.dp)
                         .clip(CircleShape)
                         .background(Color(0xFFFFEAEA)),
                     contentAlignment = Alignment.Center
@@ -100,7 +108,7 @@ fun OfflineScreen(
                         imageVector = Icons.Default.WifiOff,
                         contentDescription = "No Internet Connection",
                         tint = Color(0xFFDC2626),
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                 }
 

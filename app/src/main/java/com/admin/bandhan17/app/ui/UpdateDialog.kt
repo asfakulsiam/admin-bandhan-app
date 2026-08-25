@@ -474,20 +474,10 @@ private fun UpdateAvailableContent(
         containerColor = Color.White,
         modifier = Modifier.testTag("update_available_dialog"),
         icon = {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(BandhanEmeraldPrimary.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.NewReleases,
-                    contentDescription = "Update Available",
-                    tint = BandhanEmeraldPrimary,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+            BandhanEmblem(
+                size = 56.dp,
+                animate = false
+            )
         },
         title = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
