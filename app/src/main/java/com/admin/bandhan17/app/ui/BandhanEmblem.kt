@@ -56,14 +56,17 @@ fun BandhanEmblem(
             .testTag("bandhan_emblem"),
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.logo),
-            contentDescription = "Bandhan '17 Admin Logo",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .fillMaxSize()
-                .rotate(if (animate) rotation * 0.1f else 0f)
-        )
+        val painter = runCatching { painterResource(id = R.drawable.logo) }.getOrNull()
+        if (painter != null) {
+            Image(
+                painter = painter,
+                contentDescription = "Bandhan '17 Admin Logo",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .rotate(if (animate) rotation * 0.1f else 0f)
+            )
+        }
     }
 }
 

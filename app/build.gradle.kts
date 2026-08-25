@@ -17,8 +17,8 @@ android {
     applicationId = "com.admin.bandhan17.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 34
-    versionName = "2.2.26"
+    versionCode = 35
+    versionName = "2.2.27"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
