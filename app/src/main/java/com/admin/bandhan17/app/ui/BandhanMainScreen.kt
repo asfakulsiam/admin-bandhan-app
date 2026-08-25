@@ -3,8 +3,11 @@ package com.admin.bandhan17.app.ui
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -65,7 +68,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.admin.bandhan17.app.R
 import com.admin.bandhan17.app.download.BlobDownloadBridge
+import com.admin.bandhan17.app.download.DownloadCompletedInfo
 import com.admin.bandhan17.app.download.DownloadHandler
+import com.admin.bandhan17.app.download.DownloadRequest
 import com.admin.bandhan17.app.network.NetworkMonitor
 import com.admin.bandhan17.app.security.BiometricAuthManager
 import com.admin.bandhan17.app.security.BiometricAuthResult
@@ -88,6 +93,19 @@ private const val TARGET_URL = "https://bandhan17.website/admin"
 private const val CHROME_USER_AGENT =
     "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
 
+private val DOWNLOAD_EXTENSIONS = setOf(
+    // Documents & Spreadsheets
+    "pdf", "xlsx", "xls", "csv", "tsv", "doc", "docx", "ppt", "pptx", "txt", "rtf", "odt", "ods", "odp",
+    // Video
+    "mp4", "mkv", "mov", "avi", "webm", "3gp", "flv", "wmv", "m4v",
+    // Audio
+    "mp3", "wav", "m4a", "aac", "flac", "ogg", "opus", "amr", "wma",
+    // Archives
+    "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso",
+    // Packages & Code
+    "apk", "json", "xml", "sql"
+)
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun BandhanMainScreen(
@@ -107,6 +125,10 @@ fun BandhanMainScreen(
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var swipeRefreshLayoutInstance by remember { mutableStateOf<SwipeRefreshLayout?>(null) }
     var popupWebView by remember { mutableStateOf<WebView?>(null) }
+
+    // Download Management States
+    var pendingDownloadRequest by remember { mutableStateOf<DownloadRequest?>(null) }
+    var lastCompletedDownload by remember { mutableStateOf<DownloadCompletedInfo?>(null) }
 
     // In-App Update State & Management
     val updateManager = remember { UpdateManager() }
@@ -239,6 +261,101 @@ fun BandhanMainScreen(
         // Continue regardless; file picker will offer available sources
     }
 
+    // Permission launcher for Android 13+ status bar notifications
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    // Broadcast receiver for completed system DownloadManager downloads
+    DisposableEffect(context) {
+        val downloadCompleteReceiver = object : BroadcastReceiver() {
+            override fun onReceive(recvContext: Context?, intent: Intent?) {
+                if (intent?.action == DownloadManager.ACTION_DOWNLOAD_COMPLETE) {
+                    val downloadId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+                    if (downloadId != -1L) {
+                        try {
+                            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager ?: return
+                            val query = DownloadManager.Query().setFilterById(downloadId)
+                            val cursor = dm.query(query)
+                            cursor?.use { c ->
+                                if (c.moveToFirst()) {
+                                    val statusIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                                    val status = if (statusIndex >= 0) c.getInt(statusIndex) else -1
+                                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                                        val titleIndex = c.getColumnIndex(DownloadManager.COLUMN_TITLE)
+                                        val uriIndex = c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
+                                        val mimeIndex = c.getColumnIndex(DownloadManager.COLUMN_MEDIA_TYPE)
+                                        val sizeIndex = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+
+                                        val title = if (titleIndex >= 0) c.getString(titleIndex) else "downloaded_file"
+                                        val localUriStr = if (uriIndex >= 0) c.getString(uriIndex) else null
+                                        val mimeType = if (mimeIndex >= 0) c.getString(mimeIndex) ?: "application/octet-stream" else "application/octet-stream"
+                                        val size = if (sizeIndex >= 0) c.getLong(sizeIndex) else 0L
+
+                                        val uri = localUriStr?.let { Uri.parse(it) }
+                                        if (uri != null) {
+                                            val resolvedFile = if (uri.scheme == "file") File(uri.path ?: "") else null
+                                            val resolvedUri = if (uri.scheme == "file" && resolvedFile != null) {
+                                                try {
+                                                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", resolvedFile)
+                                                } catch (_: Exception) {
+                                                    uri
+                                                }
+                                            } else {
+                                                uri
+                                            }
+
+                                            val completedInfo = DownloadCompletedInfo(
+                                                fileName = title,
+                                                mimeType = mimeType,
+                                                fileUri = resolvedUri,
+                                                file = resolvedFile,
+                                                fileSizeBytes = size
+                                            )
+                                            lastCompletedDownload = completedInfo
+
+                                            // Show interactive notification with Open and Share action buttons
+                                            DownloadHandler.showCompletedNotification(
+                                                context = context,
+                                                notificationId = downloadId.toInt(),
+                                                fileName = title,
+                                                mimeType = mimeType,
+                                                fileUri = resolvedUri,
+                                                file = resolvedFile,
+                                                fileSizeBytes = size
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (_: Throwable) {}
+                    }
+                }
+            }
+        }
+
+        val intentFilter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(downloadCompleteReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(downloadCompleteReceiver, intentFilter)
+        }
+
+        onDispose {
+            try {
+                context.unregisterReceiver(downloadCompleteReceiver)
+            } catch (_: Throwable) {}
+        }
+    }
+
     // Safety fallback: Dismiss Splash Screen after 10s if network hangs or times out
     LaunchedEffect(Unit) {
         delay(10000)
@@ -366,17 +483,16 @@ fun BandhanMainScreen(
                     }
 
                     // Enable smooth scrolling and touch events
-                    isScrollbarFadingEnabled = true
-                    overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-
-                    // JavaScript Interface Bridge for Client-Side Blob / Base64 Downloads (Statement feature)
+                                      // JavaScript Interface Bridge for Client-Side Blob / Base64 Downloads (Statement & File export features)
                     addJavascriptInterface(
-                        BlobDownloadBridge(ctx) { webViewInstance },
+                        BlobDownloadBridge(ctx) { req ->
+                            pendingDownloadRequest = req
+                        },
                         BlobDownloadBridge.JS_INTERFACE_NAME
                     )
 
                     // Native Download Listener for HTTP/HTTPS & Blob downloads
-                    setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+                    setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
                         if (url.startsWith("blob:", ignoreCase = true) || url.startsWith("data:", ignoreCase = true)) {
                             BlobDownloadBridge.downloadBlobUrl(
                                 webView = this,
@@ -385,7 +501,16 @@ fun BandhanMainScreen(
                                 mimeType = mimetype
                             )
                         } else {
-                            DownloadHandler.handleHttpDownload(ctx, url, userAgent, contentDisposition, mimetype)
+                            val guessedMime = DownloadHandler.resolveMimeType(url, mimetype, contentDisposition)
+                            val fileName = DownloadHandler.resolveFileName(url, contentDisposition, guessedMime)
+                            pendingDownloadRequest = DownloadRequest(
+                                url = url,
+                                suggestedFileName = fileName,
+                                mimeType = guessedMime,
+                                contentDisposition = contentDisposition,
+                                userAgent = userAgent,
+                                contentLength = contentLength
+                            )
                         }
                     }
 
@@ -468,12 +593,18 @@ fun BandhanMainScreen(
                                 return true
                             }
 
-                            // Handle direct document/statement file downloads
+                            // Handle any downloadable file extension (mp4, mp3, zip, rar, xlsx, doc, pdf, apk, etc.)
                             val path = uri.path.orEmpty().lowercase()
-                            if (path.endsWith(".pdf") || path.endsWith(".xlsx") || path.endsWith(".xls") ||
-                                path.endsWith(".csv") || path.endsWith(".zip") || path.endsWith(".doc") || path.endsWith(".docx")
-                            ) {
-                                DownloadHandler.handleHttpDownload(ctx, urlString, settings.userAgentString, null, null)
+                            val ext = path.substringAfterLast(".", "")
+                            if (ext in DOWNLOAD_EXTENSIONS) {
+                                val guessedMime = DownloadHandler.resolveMimeType(urlString, null, null)
+                                val fileName = DownloadHandler.resolveFileName(urlString, null, guessedMime)
+                                pendingDownloadRequest = DownloadRequest(
+                                    url = urlString,
+                                    suggestedFileName = fileName,
+                                    mimeType = guessedMime,
+                                    userAgent = settings.userAgentString
+                                )
                                 return true
                             }
 
@@ -528,11 +659,13 @@ fun BandhanMainScreen(
                                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
                                 addJavascriptInterface(
-                                    BlobDownloadBridge(ctx) { this },
+                                    BlobDownloadBridge(ctx) { req ->
+                                        pendingDownloadRequest = req
+                                    },
                                     BlobDownloadBridge.JS_INTERFACE_NAME
                                 )
 
-                                setDownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
+                                setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
                                     if (url.startsWith("blob:", ignoreCase = true) || url.startsWith("data:", ignoreCase = true)) {
                                         BlobDownloadBridge.downloadBlobUrl(
                                             webView = this,
@@ -541,7 +674,16 @@ fun BandhanMainScreen(
                                             mimeType = mimetype
                                         )
                                     } else {
-                                        DownloadHandler.handleHttpDownload(ctx, url, userAgent, contentDisposition, mimetype)
+                                        val guessedMime = DownloadHandler.resolveMimeType(url, mimetype, contentDisposition)
+                                        val fileName = DownloadHandler.resolveFileName(url, contentDisposition, guessedMime)
+                                        pendingDownloadRequest = DownloadRequest(
+                                            url = url,
+                                            suggestedFileName = fileName,
+                                            mimeType = guessedMime,
+                                            contentDisposition = contentDisposition,
+                                            userAgent = userAgent,
+                                            contentLength = contentLength
+                                        )
                                     }
                                     popupWebView?.destroy()
                                     popupWebView = null
@@ -571,10 +713,16 @@ fun BandhanMainScreen(
                                         }
 
                                         val path = uri?.path.orEmpty().lowercase()
-                                        if (path.endsWith(".pdf") || path.endsWith(".xlsx") || path.endsWith(".xls") ||
-                                            path.endsWith(".csv") || path.endsWith(".zip") || path.endsWith(".doc") || path.endsWith(".docx")
-                                        ) {
-                                            DownloadHandler.handleHttpDownload(ctx, url, settings.userAgentString, null, null)
+                                        val ext = path.substringAfterLast(".", "")
+                                        if (ext in DOWNLOAD_EXTENSIONS) {
+                                            val guessedMime = DownloadHandler.resolveMimeType(url, null, null)
+                                            val fileName = DownloadHandler.resolveFileName(url, null, guessedMime)
+                                            pendingDownloadRequest = DownloadRequest(
+                                                url = url,
+                                                suggestedFileName = fileName,
+                                                mimeType = guessedMime,
+                                                userAgent = settings.userAgentString
+                                            )
                                             popupWebView?.destroy()
                                             popupWebView = null
                                             return true
@@ -774,6 +922,61 @@ fun BandhanMainScreen(
                     }
                 }
             }
+        )
+
+        // Download Confirmation Dialog (allows renaming, shows file category, size, destination)
+        pendingDownloadRequest?.let { request ->
+            DownloadConfirmDialog(
+                request = request,
+                onConfirm = { editedFileName ->
+                    pendingDownloadRequest = null
+                    if (request.isBlobOrBase64) {
+                        DownloadHandler.executeBase64Download(
+                            context = context,
+                            request = request,
+                            customFileName = editedFileName,
+                            onCompleted = { completedInfo ->
+                                lastCompletedDownload = completedInfo
+                            }
+                        )
+                    } else {
+                        DownloadHandler.executeHttpDownload(
+                            context = context,
+                            request = request,
+                            customFileName = editedFileName
+                        )
+                    }
+                },
+                onDismiss = {
+                    pendingDownloadRequest = null
+                }
+            )
+        }
+
+        // Download Completed Banner (floating card with Open and Share action buttons)
+        DownloadCompletedBanner(
+            completedInfo = lastCompletedDownload,
+            onOpen = { info ->
+                DownloadHandler.openDownloadedFile(
+                    context = context,
+                    fileUri = info.fileUri,
+                    mimeType = info.mimeType,
+                    file = info.file
+                )
+            },
+            onShare = { info ->
+                DownloadHandler.shareDownloadedFile(
+                    context = context,
+                    fileUri = info.fileUri,
+                    mimeType = info.mimeType,
+                    file = info.file,
+                    fileName = info.fileName
+                )
+            },
+            onDismiss = {
+                lastCompletedDownload = null
+            },
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }

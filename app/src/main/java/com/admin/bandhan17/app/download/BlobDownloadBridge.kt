@@ -1,33 +1,45 @@
 package com.admin.bandhan17.app.download
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 
 /**
  * JavaScript interface bridge exposed to WebView as 'AndroidBlobDownloader'.
- * Allows the web app and injected script to pass generated Blob / Data URL statements
- * directly into the native download engine.
+ * Allows the web app and injected script to pass generated Blob / Data URL files
+ * directly into the native download engine with user confirmation.
  */
 class BlobDownloadBridge(
     private val context: Context,
-    private val webViewProvider: () -> WebView?
+    private val onDownloadRequested: (DownloadRequest) -> Unit
 ) {
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
     fun getBase64FromBlobData(base64Data: String?, fileName: String?, mimeType: String?) {
         if (base64Data.isNullOrBlank()) return
-        DownloadHandler.saveBase64Download(
-            context = context,
+
+        val resolvedMime = DownloadHandler.resolveMimeType("", mimeType, null)
+        val resolvedFileName = DownloadHandler.resolveBlobFileName(fileName, resolvedMime)
+
+        val request = DownloadRequest(
+            url = "blob:data",
+            suggestedFileName = resolvedFileName,
+            mimeType = resolvedMime,
             base64Data = base64Data,
-            suggestedFileName = fileName,
-            mimeType = mimeType
+            isBlobOrBase64 = true
         )
+
+        mainHandler.post {
+            onDownloadRequested(request)
+        }
     }
 
     @JavascriptInterface
     fun notifyDownloadStarted(fileName: String?) {
-        // Can be used for logging or UI feedback
+        // Logging / UI hook if needed
     }
 
     companion object {
@@ -42,8 +54,8 @@ class BlobDownloadBridge(
             suggestedFileName: String?,
             mimeType: String?
         ) {
-            val safeFileName = (suggestedFileName ?: "Statement.pdf").replace("'", "\\'")
-            val safeMime = (mimeType ?: "application/pdf").replace("'", "\\'")
+            val safeFileName = (suggestedFileName ?: "Bandhan17_Download").replace("'", "\\'")
+            val safeMime = (mimeType ?: "application/octet-stream").replace("'", "\\'")
             val safeUrl = blobOrDataUrl.replace("'", "\\'")
 
             val jsCode = """
@@ -69,14 +81,14 @@ class BlobDownloadBridge(
                                         window.$JS_INTERFACE_NAME.getBase64FromBlobData(
                                             reader.result, 
                                             name, 
-                                            mime || blob.type || 'application/pdf'
+                                            blob.type || mime || 'application/octet-stream'
                                         );
                                     }
                                 };
                                 reader.readAsDataURL(blob);
                             })
                             .catch(function(err) {
-                                console.error('Error fetching blob url in Android WebView', err);
+                                console.error('Error fetching blob URL in WebView', err);
                             });
                     } catch (e) {
                         console.error('Blob downloader exception', e);
@@ -90,14 +102,13 @@ class BlobDownloadBridge(
         }
 
         /**
-         * Global JavaScript hook injected on page load to intercept client-side statement downloads (<a download> and blob clicks).
+         * Global JavaScript hook injected on page load to intercept client-side downloads (<a download> and blob clicks).
          */
         val INTERCEPTOR_JS = """
             (function() {
                 if (window.__bandhanDownloadHookInjected) return;
                 window.__bandhanDownloadHookInjected = true;
 
-                // Intercept anchor clicks with download attribute or blob: URLs
                 document.addEventListener('click', function(e) {
                     var target = e.target;
                     while (target && target.tagName !== 'A') {
@@ -110,7 +121,7 @@ class BlobDownloadBridge(
                     
                     if (href.indexOf('blob:') === 0 || href.indexOf('data:') === 0 || downloadAttr !== null) {
                         if (href.indexOf('blob:') === 0 || href.indexOf('data:') === 0) {
-                            var filename = downloadAttr || target.download || 'Statement.pdf';
+                            var filename = downloadAttr || target.download || 'Bandhan17_Download';
                             if (window.$JS_INTERFACE_NAME) {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -122,10 +133,13 @@ class BlobDownloadBridge(
                                             window.$JS_INTERFACE_NAME.getBase64FromBlobData(
                                                 reader.result,
                                                 filename,
-                                                blob.type || 'application/pdf'
+                                                blob.type || 'application/octet-stream'
                                             );
                                         };
                                         reader.readAsDataURL(blob);
+                                    })
+                                    .catch(function(err) {
+                                        console.error('Interceptor fetch error', err);
                                     });
                             }
                         }
