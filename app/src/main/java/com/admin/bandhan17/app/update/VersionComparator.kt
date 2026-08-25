@@ -35,8 +35,15 @@ object VersionComparator {
         return false
     }
 
+    private val semVerRegex = Regex("""(\d+(?:\.\d+)+)""")
+
     private fun cleanVersion(ver: String): String {
-        return ver.trim()
+        val trimmed = ver.trim()
+        val match = semVerRegex.find(trimmed)
+        if (match != null) {
+            return match.value
+        }
+        return trimmed
             .removePrefix("v")
             .removePrefix("V")
             .substringBefore("-") // Handle tags like 1.0.1-rc1 -> 1.0.1

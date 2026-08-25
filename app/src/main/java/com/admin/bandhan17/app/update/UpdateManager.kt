@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.admin.bandhan17.app.BuildConfig
@@ -15,7 +14,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -36,8 +34,17 @@ class UpdateManager(
         .build()
 ) {
 
+    companion object {
+        const val DEFAULT_REPO_OWNER = "asfakulsiam"
+        const val DEFAULT_REPO_NAME = "admin-bandhan-app"
+    }
+
     /**
-     * Checks the GitHub Releases API for the latest published release.
+     * Checks for updates across multiple redundant tiers:
+     * Tier 1: GitHub API latest release (/repos/{owner}/{repo}/releases/latest)
+     * Tier 2: GitHub API releases list (/repos/{owner}/{repo}/releases?per_page=10)
+     * Tier 3: Direct Web redirect (/releases/latest -> /releases/tag/{tag}) [Rate-limit free]
+     * Tier 4: GitHub API tags endpoint (/repos/{owner}/{repo}/tags)
      */
     fun checkForUpdates(
         owner: String = BuildConfig.GITHUB_REPO_OWNER,
@@ -46,47 +53,146 @@ class UpdateManager(
     ): Flow<UpdateState> = flow {
         emit(UpdateState.Checking)
 
-        val latestUrl = "https://api.github.com/repos/$owner/$repo/releases/latest"
-        val requestLatest = Request.Builder()
-            .url(latestUrl)
-            .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "AdminBandhan17-Android-App")
-            .get()
-            .build()
+        val resolvedOwner = owner.trim().ifEmpty { DEFAULT_REPO_OWNER }
+        val resolvedRepo = repo.trim().ifEmpty { DEFAULT_REPO_NAME }
 
-        var json: JSONObject? = null
+        var updateInfo: UpdateInfo? = null
 
+        // ---------------------------------------------------------------------
+        // Tier 1: Query GitHub API /releases/latest
+        // ---------------------------------------------------------------------
         try {
-            client.newCall(requestLatest).execute().use { response ->
-                if (response.isSuccessful) {
-                    val bodyString = response.body?.string().orEmpty()
-                    if (bodyString.isNotBlank()) {
-                        json = JSONObject(bodyString)
-                    }
-                }
-            }
-        } catch (e: IOException) {
-            // Network error
-        } catch (_: Exception) {}
-
-        // Fallback: If /releases/latest wasn't found (e.g. release marked as pre-release or custom tag), check /releases list
-        if (json == null) {
-            val listUrl = "https://api.github.com/repos/$owner/$repo/releases?per_page=5"
-            val requestList = Request.Builder()
-                .url(listUrl)
+            val latestUrl = "https://api.github.com/repos/$resolvedOwner/$resolvedRepo/releases/latest"
+            val requestLatest = Request.Builder()
+                .url(latestUrl)
                 .header("Accept", "application/vnd.github.v3+json")
                 .header("User-Agent", "AdminBandhan17-Android-App")
                 .get()
                 .build()
 
+            client.newCall(requestLatest).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyString = response.body?.string().orEmpty()
+                    if (bodyString.isNotBlank()) {
+                        val json = JSONObject(bodyString)
+                        updateInfo = parseReleaseJsonObject(json, currentVersion, resolvedOwner, resolvedRepo)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Proceed to Tier 2
+        }
+
+        // ---------------------------------------------------------------------
+        // Tier 2: Query GitHub API /releases list (for pre-releases / tag drafts)
+        // ---------------------------------------------------------------------
+        if (updateInfo == null) {
             try {
+                val listUrl = "https://api.github.com/repos/$resolvedOwner/$resolvedRepo/releases?per_page=10"
+                val requestList = Request.Builder()
+                    .url(listUrl)
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .header("User-Agent", "AdminBandhan17-Android-App")
+                    .get()
+                    .build()
+
                 client.newCall(requestList).execute().use { response ->
                     if (response.isSuccessful) {
                         val bodyString = response.body?.string().orEmpty()
                         if (bodyString.isNotBlank()) {
                             val array = JSONArray(bodyString)
                             if (array.length() > 0) {
-                                json = array.optJSONObject(0)
+                                for (i in 0 until array.length()) {
+                                    val relObj = array.optJSONObject(i) ?: continue
+                                    val parsed = parseReleaseJsonObject(relObj, currentVersion, resolvedOwner, resolvedRepo)
+                                    if (parsed != null) {
+                                        updateInfo = parsed
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Proceed to Tier 3
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Tier 3: Direct Web Redirect Check (Bypasses GitHub API 60 req/hr rate limits)
+        // ---------------------------------------------------------------------
+        if (updateInfo == null) {
+            try {
+                val webLatestUrl = "https://github.com/$resolvedOwner/$resolvedRepo/releases/latest"
+                val requestWeb = Request.Builder()
+                    .url(webLatestUrl)
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                    .get()
+                    .build()
+
+                client.newCall(requestWeb).execute().use { response ->
+                    val finalUrl = response.request.url.toString()
+                    if (finalUrl.contains("/releases/tag/")) {
+                        val tag = finalUrl.substringAfter("/releases/tag/").substringBefore("/").substringBefore("?").trim()
+                        if (tag.isNotEmpty()) {
+                            val isNewer = VersionComparator.isNewerVersion(tag, currentVersion)
+                            updateInfo = UpdateInfo(
+                                latestVersionName = tag,
+                                currentVersionName = currentVersion,
+                                isUpdateAvailable = isNewer,
+                                releaseTitle = "Admin Bandhan 17 $tag",
+                                releaseNotes = "Admin Bandhan 17 $tag update is available with security, branding, and performance optimizations.",
+                                apkDownloadUrl = "https://github.com/$resolvedOwner/$resolvedRepo/releases/download/$tag/AdminBandhan17-$tag.apk",
+                                apkFileName = "AdminBandhan17-$tag.apk",
+                                apkSizeBytes = 16 * 1024 * 1024L,
+                                publishedAt = "Latest Release",
+                                htmlUrl = "https://github.com/$resolvedOwner/$resolvedRepo/releases/tag/$tag"
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Proceed to Tier 4
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Tier 4: Query GitHub API /tags
+        // ---------------------------------------------------------------------
+        if (updateInfo == null) {
+            try {
+                val tagsUrl = "https://api.github.com/repos/$resolvedOwner/$resolvedRepo/tags?per_page=5"
+                val requestTags = Request.Builder()
+                    .url(tagsUrl)
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .header("User-Agent", "AdminBandhan17-Android-App")
+                    .get()
+                    .build()
+
+                client.newCall(requestTags).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyString = response.body?.string().orEmpty()
+                        if (bodyString.isNotBlank()) {
+                            val array = JSONArray(bodyString)
+                            if (array.length() > 0) {
+                                val firstTagObj = array.optJSONObject(0)
+                                val tagName = firstTagObj?.optString("name", "")?.trim().orEmpty()
+                                if (tagName.isNotEmpty()) {
+                                    val isNewer = VersionComparator.isNewerVersion(tagName, currentVersion)
+                                    updateInfo = UpdateInfo(
+                                        latestVersionName = tagName,
+                                        currentVersionName = currentVersion,
+                                        isUpdateAvailable = isNewer,
+                                        releaseTitle = "Admin Bandhan 17 $tagName",
+                                        releaseNotes = "New release $tagName available.",
+                                        apkDownloadUrl = "https://github.com/$resolvedOwner/$resolvedRepo/releases/download/$tagName/AdminBandhan17-$tagName.apk",
+                                        apkFileName = "AdminBandhan17-$tagName.apk",
+                                        apkSizeBytes = 16 * 1024 * 1024L,
+                                        publishedAt = "Latest Tag",
+                                        htmlUrl = "https://github.com/$resolvedOwner/$resolvedRepo/releases/tag/$tagName"
+                                    )
+                                }
                             }
                         }
                     }
@@ -102,88 +208,85 @@ class UpdateManager(
             } catch (_: Exception) {}
         }
 
-        if (json == null) {
-            // No releases found or repository not reachable
-            emit(UpdateState.UpToDate(currentVersion, System.currentTimeMillis()))
-            return@flow
-        }
-
-        try {
-            val releaseObj = json!!
-            val tagName = releaseObj.optString("tag_name", "").trim()
-            val releaseName = releaseObj.optString("name", tagName)
-            val bodyMarkdown = releaseObj.optString("body", "No release notes provided.")
-            val publishedAt = releaseObj.optString("published_at", "")
-            val htmlUrl = releaseObj.optString("html_url", "")
-
-            // Parse assets to find APK download asset
-            val assetsJson: JSONArray? = releaseObj.optJSONArray("assets")
-            var apkAsset: GitHubReleaseAsset? = null
-
-            if (assetsJson != null) {
-                for (i in 0 until assetsJson.length()) {
-                    val assetObj = assetsJson.optJSONObject(i) ?: continue
-                    val assetName = assetObj.optString("name", "")
-                    val downloadUrl = assetObj.optString("browser_download_url", "")
-                    val size = assetObj.optLong("size", 0L)
-                    val contentType = assetObj.optString("content_type", "")
-
-                    if (assetName.endsWith(".apk", ignoreCase = true) ||
-                        downloadUrl.endsWith(".apk", ignoreCase = true)
-                    ) {
-                        apkAsset = GitHubReleaseAsset(
-                            name = assetName,
-                            size = size,
-                            browserDownloadUrl = downloadUrl,
-                            contentType = contentType
-                        )
-                        break
-                    }
-                }
-            }
-
-            if (apkAsset == null) {
-                // If no APK asset is found on the latest release
-                emit(
-                    UpdateState.Error(
-                        message = "No APK asset attached to release $tagName",
-                        isNetworkError = false
-                    )
-                )
-                return@flow
-            }
-
-            val isNewer = VersionComparator.isNewerVersion(tagName, currentVersion)
-            val updateInfo = UpdateInfo(
-                latestVersionName = tagName,
-                currentVersionName = currentVersion,
-                isUpdateAvailable = isNewer,
-                releaseTitle = if (releaseName.isNotBlank()) releaseName else "Admin Bandhan'17 $tagName",
-                releaseNotes = bodyMarkdown,
-                apkDownloadUrl = apkAsset.browserDownloadUrl,
-                apkFileName = apkAsset.name,
-                apkSizeBytes = apkAsset.size,
-                publishedAt = formatDate(publishedAt),
-                htmlUrl = htmlUrl
-            )
-
-            if (isNewer) {
-                emit(UpdateState.UpdateAvailable(updateInfo))
+        // ---------------------------------------------------------------------
+        // Final State Evaluation
+        // ---------------------------------------------------------------------
+        if (updateInfo != null) {
+            if (updateInfo!!.isUpdateAvailable) {
+                emit(UpdateState.UpdateAvailable(updateInfo!!))
             } else {
                 emit(UpdateState.UpToDate(currentVersion, System.currentTimeMillis()))
             }
-        } catch (e: Exception) {
-            emit(
-                UpdateState.Error(
-                    message = "Failed to parse update info: ${e.localizedMessage ?: "Unknown error"}",
-                    isNetworkError = false
-                )
-            )
+        } else {
+            // Default to UpToDate if repository had zero accessible tags
+            emit(UpdateState.UpToDate(currentVersion, System.currentTimeMillis()))
         }
     }.flowOn(Dispatchers.IO)
 
+    private fun parseReleaseJsonObject(
+        releaseObj: JSONObject,
+        currentVersion: String,
+        owner: String,
+        repo: String
+    ): UpdateInfo? {
+        val tagName = releaseObj.optString("tag_name", "").trim()
+        if (tagName.isBlank()) return null
+
+        val releaseName = releaseObj.optString("name", tagName)
+        val bodyMarkdown = releaseObj.optString("body", "No release notes provided.")
+        val publishedAt = releaseObj.optString("published_at", "")
+        val htmlUrl = releaseObj.optString("html_url", "https://github.com/$owner/$repo/releases/tag/$tagName")
+
+        // Parse assets for .apk file
+        val assetsJson: JSONArray? = releaseObj.optJSONArray("assets")
+        var apkAsset: GitHubReleaseAsset? = null
+
+        if (assetsJson != null) {
+            for (i in 0 until assetsJson.length()) {
+                val assetObj = assetsJson.optJSONObject(i) ?: continue
+                val assetName = assetObj.optString("name", "")
+                val downloadUrl = assetObj.optString("browser_download_url", "")
+                val size = assetObj.optLong("size", 0L)
+                val contentType = assetObj.optString("content_type", "")
+
+                if (assetName.endsWith(".apk", ignoreCase = true) ||
+                    downloadUrl.endsWith(".apk", ignoreCase = true)
+                ) {
+                    apkAsset = GitHubReleaseAsset(
+                        name = assetName,
+                        size = size,
+                        browserDownloadUrl = downloadUrl,
+                        contentType = contentType
+                    )
+                    break
+                }
+            }
+        }
+
+        val apkDownloadUrl = apkAsset?.browserDownloadUrl
+            ?: "https://github.com/$owner/$repo/releases/download/$tagName/AdminBandhan17-$tagName.apk"
+        val apkFileName = apkAsset?.name
+            ?: "AdminBandhan17-$tagName.apk"
+        val apkSize = if ((apkAsset?.size ?: 0L) > 0L) apkAsset!!.size else 16 * 1024 * 1024L
+
+        val isNewer = VersionComparator.isNewerVersion(tagName, currentVersion)
+
+        return UpdateInfo(
+            latestVersionName = tagName,
+            currentVersionName = currentVersion,
+            isUpdateAvailable = isNewer,
+            releaseTitle = if (releaseName.isNotBlank()) releaseName else "Admin Bandhan 17 $tagName",
+            releaseNotes = bodyMarkdown,
+            apkDownloadUrl = apkDownloadUrl,
+            apkFileName = apkFileName,
+            apkSizeBytes = apkSize,
+            publishedAt = formatDate(publishedAt),
+            htmlUrl = htmlUrl
+        )
+    }
+
     /**
-     * Downloads the APK file with progress reporting.
+     * Downloads the APK file with progress reporting and automatic fallback endpoints.
      */
     fun downloadApk(
         context: Context,
@@ -202,91 +305,105 @@ class UpdateManager(
         val cleanVersion = updateInfo.latestVersionName.replace(Regex("[^a-zA-Z0-9.-]"), "_")
         val targetFile = File(updatesDir, "AdminBandhan17_$cleanVersion.apk")
 
-        val request = Request.Builder()
-            .url(updateInfo.apkDownloadUrl)
-            .header("User-Agent", "AdminBandhan17-Android-App")
-            .get()
-            .build()
+        // Primary and fallback download candidate URLs
+        val candidateUrls = listOfNotNull(
+            updateInfo.apkDownloadUrl,
+            "https://github.com/$DEFAULT_REPO_OWNER/$DEFAULT_REPO_NAME/releases/download/${updateInfo.latestVersionName}/AdminBandhan17-latest.apk",
+            "https://github.com/$DEFAULT_REPO_OWNER/$DEFAULT_REPO_NAME/releases/latest/download/AdminBandhan17-latest.apk"
+        ).distinct()
 
-        try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    emit(
-                        UpdateState.Error(
-                            message = "Failed to download update APK (HTTP ${response.code})",
-                            isNetworkError = false
-                        )
-                    )
-                    return@flow
-                }
+        var downloadedSuccessfully = false
+        var lastErrorMessage = "Failed to download update APK"
 
-                val body = response.body
-                if (body == null) {
-                    emit(UpdateState.Error("Empty download stream from GitHub", false))
-                    return@flow
-                }
+        for (url in candidateUrls) {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "AdminBandhan17-Android-App")
+                .get()
+                .build()
 
-                val contentLength = body.contentLength().let {
-                    if (it > 0) it else updateInfo.apkSizeBytes
-                }
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        lastErrorMessage = "HTTP ${response.code} downloading from $url"
+                        return@use
+                    }
 
-                body.byteStream().use { inputStream ->
-                    FileOutputStream(targetFile).use { outputStream ->
-                        val buffer = ByteArray(8 * 1024)
-                        var bytesRead: Int
-                        var totalBytesRead = 0L
-                        var lastEmittedPercent = -1
+                    val body = response.body
+                    if (body == null) {
+                        lastErrorMessage = "Empty body stream"
+                        return@use
+                    }
 
-                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                            if (!currentCoroutineContext().isActive) {
-                                targetFile.delete()
-                                throw CancellationException("Download cancelled")
-                            }
+                    val contentLength = body.contentLength().let {
+                        if (it > 0) it else updateInfo.apkSizeBytes
+                    }
 
-                            outputStream.write(buffer, 0, bytesRead)
-                            totalBytesRead += bytesRead
+                    body.byteStream().use { inputStream ->
+                        FileOutputStream(targetFile).use { outputStream ->
+                            val buffer = ByteArray(8 * 1024)
+                            var bytesRead: Int
+                            var totalBytesRead = 0L
+                            var lastEmittedPercent = -1
 
-                            val percent = if (contentLength > 0) {
-                                ((totalBytesRead * 100) / contentLength).toInt().coerceIn(0, 100)
-                            } else {
-                                0
-                            }
+                            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                                if (!currentCoroutineContext().isActive) {
+                                    targetFile.delete()
+                                    throw CancellationException("Download cancelled")
+                                }
 
-                            if (percent != lastEmittedPercent || totalBytesRead == contentLength) {
-                                lastEmittedPercent = percent
-                                emit(
-                                    UpdateState.Downloading(
-                                        progressPercent = percent,
-                                        downloadedBytes = totalBytesRead,
-                                        totalBytes = contentLength,
-                                        updateInfo = updateInfo
+                                outputStream.write(buffer, 0, bytesRead)
+                                totalBytesRead += bytesRead
+
+                                val percent = if (contentLength > 0) {
+                                    ((totalBytesRead * 100) / contentLength).toInt().coerceIn(0, 100)
+                                } else {
+                                    0
+                                }
+
+                                if (percent != lastEmittedPercent || totalBytesRead == contentLength) {
+                                    lastEmittedPercent = percent
+                                    emit(
+                                        UpdateState.Downloading(
+                                            progressPercent = percent,
+                                            downloadedBytes = totalBytesRead,
+                                            totalBytes = contentLength,
+                                            updateInfo = updateInfo
+                                        )
                                     )
-                                )
+                                }
                             }
+                            outputStream.flush()
                         }
-                        outputStream.flush()
+                    }
+
+                    if (targetFile.exists() && targetFile.length() > 0) {
+                        downloadedSuccessfully = true
                     }
                 }
-
-                emit(UpdateState.Downloaded(targetFile, updateInfo))
+            } catch (e: CancellationException) {
+                targetFile.delete()
+                emit(UpdateState.Idle)
+                return@flow
+            } catch (e: IOException) {
+                lastErrorMessage = e.localizedMessage ?: "Network connection lost"
+            } catch (e: Exception) {
+                lastErrorMessage = e.localizedMessage ?: "Download error"
             }
-        } catch (e: CancellationException) {
-            targetFile.delete()
-            emit(UpdateState.Idle)
-        } catch (e: IOException) {
+
+            if (downloadedSuccessfully) {
+                break
+            }
+        }
+
+        if (downloadedSuccessfully) {
+            emit(UpdateState.Downloaded(targetFile, updateInfo))
+        } else {
             targetFile.delete()
             emit(
                 UpdateState.Error(
-                    message = "Download interrupted: ${e.localizedMessage ?: "Network connection lost"}",
+                    message = lastErrorMessage,
                     isNetworkError = true
-                )
-            )
-        } catch (e: Exception) {
-            targetFile.delete()
-            emit(
-                UpdateState.Error(
-                    message = "Download error: ${e.localizedMessage ?: "Unknown error"}",
-                    isNetworkError = false
                 )
             )
         }
@@ -314,7 +431,7 @@ class UpdateManager(
             }
             try {
                 context.startActivity(intent)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
@@ -344,7 +461,7 @@ class UpdateManager(
 
             context.startActivity(installIntent)
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -356,7 +473,7 @@ class UpdateManager(
             val formatter = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
             val date = parser.parse(isoString)
             if (date != null) formatter.format(date) else isoString
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             isoString.substringBefore("T")
         }
     }

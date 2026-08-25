@@ -17,8 +17,8 @@ android {
     applicationId = "com.admin.bandhan17.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 39
-    versionName = "2.2.31"
+    versionCode = 41
+    versionName = "2.2.33"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -32,6 +32,7 @@ android {
     val repoName = when {
       !System.getenv("GITHUB_REPO_NAME").isNullOrBlank() -> System.getenv("GITHUB_REPO_NAME")
       !System.getenv("GITHUB_UPDATE_REPO_NAME").isNullOrBlank() -> System.getenv("GITHUB_UPDATE_REPO_NAME")
+      !githubRepoEnv.isNullOrBlank() && githubRepoEnv.contains("/") -> githubRepoEnv.substringAfter("/")
       else -> "admin-bandhan-app"
     }
     buildConfigField("String", "GITHUB_REPO_OWNER", "\"$repoOwner\"")
